@@ -43,33 +43,45 @@ export default function CopilotPage() {
 
     // Add user message
     const userMessage = { sender: 'user', text };
-    setMessages(prev => [...prev, userMessage]);
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     if (!textToSend) setInputText('');
 
     // Trigger AI response
     setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      let aiText = "I've logged that request. Let me gather the telemetry data and generate an action plan for you.";
-      let strategies = null;
 
-      const lowerText = text.toLowerCase();
-      if (lowerText.includes('dorm a') || lowerText.includes('trends')) {
-        aiText = "Here are the energy trends for **Dorm A (Residence Block)**. Usage has peaked between 6:00 PM and 9:00 PM due to student occupancy. I suggest deploying solar battery offsets during these hours.";
-        strategies = [
-          { id: 'D1', name: 'Battery Discharge', text: 'Deploy stored solar energy to offset residential spikes.', savings: '-8.5 kW/h', color: 'primary' },
-          { id: 'D2', name: 'Laundry Lock', text: 'Restrict heavy appliance use in common laundry rooms past 6 PM.', savings: '-3.0 kW/h', color: 'secondary' }
-        ];
-      } else if (lowerText.includes('solar') || lowerText.includes('battery')) {
-        aiText = "Solar battery levels are currently at **78% charge (420 kWh)**. Projected solar yield for the afternoon is high. Battery offset capability is fully optimal for peak-shaving at 2:00 PM.";
-      } else if (lowerText.includes('report') || lowerText.includes('sustainability')) {
-        aiText = "I have drafted the **Sustainability Report Draft for Q2 2026**. Key highlights: \n\n- Total Energy Consumed: 12.4 MWh \n- Carbon Saved: 8.5 Tons \n- Smart HVAC pre-cooling was active for 45 days. \n\nClick below to download the compiled PDF report.";
-      } else if (lowerText.includes('attached csv') || lowerText.includes('.csv')) {
-        aiText = "I have detected and processed the custom CSV data file you uploaded! \n\n- **Detected Columns:** building, load, status \n- **Rows Parsed:** 14 records \n- **Key Insight:** Science Wing B and Engineering Block represent 64% of total active load. I recommend applying auto-optimization to lower peak demands immediately.";
-      }
-
-      setMessages(prev => [...prev, { sender: 'ai', text: aiText, strategies }]);
-    }, 1500);
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messages: updatedMessages
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        setIsTyping(false);
+        if (data.error) {
+          setMessages(prev => [
+            ...prev,
+            { sender: 'ai', text: `⚠️ **Error:** ${data.error}` }
+          ]);
+        } else {
+          setMessages(prev => [
+            ...prev,
+            { sender: 'ai', text: data.text, strategies: data.strategies }
+          ]);
+        }
+      })
+      .catch(err => {
+        setIsTyping(false);
+        setMessages(prev => [
+          ...prev,
+          { sender: 'ai', text: `⚠️ **Connection Error:** Failed to connect to prediction model API.` }
+        ]);
+        console.error('Chat connection error:', err);
+      });
   };
 
   const handleFileUpload = (e) => {
